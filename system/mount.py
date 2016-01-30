@@ -349,13 +349,17 @@ def main():
                     res,msg = mount(module, **args)
             elif 'bind' in args.get('opts', []):
                 changed = True
-                cmd = 'mount -l'
+                cmd = 'findmnt -rn %s' % args['name']
                 rc, out, err = module.run_command(cmd)
                 allmounts = out.split('\n')
+
                 for mounts in allmounts[:-1]:
                     arguments = mounts.split()
-                    if arguments[0] == args['src'] and arguments[2] == args['name'] and arguments[4] == args['fstype']:
+                    source = re.compile('\[(.*)\]').search(arguments[1]).group(1)
+
+                    if arguments[0] == args['name'] and source == args['src']:
                         changed = False
+
                 if changed:
                     res,msg = mount(module, **args)
             else:
