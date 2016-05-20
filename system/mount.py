@@ -252,6 +252,43 @@ def umount(module, **kwargs):
     else:
         return rc, out+err
 
+def ismounted(module, target, source):
+    """ check is target-source mount point exist (including bind) """
+    mounted = False
+
+    # bind mounts are not recognized correctly by `os.path.ismount` method
+    cmd = 'findmnt -rn %s' % target
+    rc, out, err = module.run_command(cmd)
+
+    allmounts = out.split('\n')
+
+    for mounts in allmounts[:-1]:
+       arguments = mounts.split()
+       sourcePath = re.compile('\[(.*)\]').search(arguments[1]).group(1)
+
+       if source == sourcePath:
+           mounted = True
+
+    """ check is path is mounted (including bind) """
+    mounted = False
+
+    # bind mounts are not recognized correctly by `os.path.ismount` method
+    cmd = 'findmnt -rn %s' % target
+    rc, out, err = module.run_command(cmd)
+
+    allmounts = out.split('\n')
+
+    for mounts in allmounts[:-1]:
+        arguments = mounts.split()
+        sourcePath = re.compile('\[(.*)\]').search(arguments[1]).group(1)
+
+        if source == sourcePath:
+            mounted = True
+
+    return mounted
+
+
+
 def main():
 
     module = AnsibleModule(
@@ -302,7 +339,7 @@ def main():
     if state == 'absent':
         name, changed = unset_mount(module, **args)
         if changed and not module.check_mode:
-            if ismount(name):
+            if ismounted(module, name, args['src']):
                 res,msg  = umount(module, **args)
                 if res:
                     module.fail_json(msg="Error unmounting %s: %s" % (name, msg))
@@ -317,7 +354,7 @@ def main():
         module.exit_json(changed=changed, **args)
 
     if state == 'unmounted':
-        if ismount(name):
+        if ismounted(module, name, args['src']):
             if not module.check_mode:
                 res,msg  = umount(module, **args)
                 if res:
@@ -338,7 +375,7 @@ def main():
         name, changed = set_mount(module, **args)
         if state == 'mounted':
             res = 0
-            if ismount(name):
+            if ismounted(module, name, args['src']):
                 if changed and not module.check_mode:
                     res,msg = mount(module, **args)
             elif 'bind' in args.get('opts', []):
